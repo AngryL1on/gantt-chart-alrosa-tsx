@@ -7,6 +7,11 @@ export function fmt(d: Date | null | undefined): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
+export function fmtRu(d: Date | null | undefined): string {
+  if (!d) return ''
+  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`
+}
+
 export function parseDate(s: string | null | undefined): Date | null {
   if (!s || typeof s !== 'string') return null
   const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/)
@@ -19,6 +24,10 @@ export function addDays(d: Date, n: number): Date {
   const x = new Date(d.getFullYear(), d.getMonth(), d.getDate())
   x.setDate(x.getDate() + n)
   return x
+}
+
+export function startOfDay(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate())
 }
 
 export const MONTHS_RU = [
@@ -34,4 +43,19 @@ export const MONTHS_RU = [
   'окт',
   'ноя',
   'дек',
+] as const
+
+export const MONTHS_RU_CAP = [
+  'Янв',
+  'Фев',
+  'Мар',
+  'Апр',
+  'Май',
+  'Июн',
+  'Июл',
+  'Авг',
+  'Сен',
+  'Окт',
+  'Ноя',
+  'Дек',
 ] as const

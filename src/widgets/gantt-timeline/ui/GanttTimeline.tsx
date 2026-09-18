@@ -1,20 +1,20 @@
 import { useCallback, useMemo, useRef } from 'react'
-import type { FlatRow, Task } from '@/entities/task'
-import { taskRange } from '@/entities/task'
+import type { DateSpan, FlatRow } from '@/entities/task'
+import { rowToneClass, taskRange } from '@/entities/task'
 import { ROW_HEIGHT } from '@/shared/config'
-import { fmt, MONTHS_RU } from '@/shared/lib/dates'
+import { fmt, parseDate } from '@/shared/lib/dates'
 import {
   dayIndex,
-  monthList,
-  projectSpan,
+  pickScale,
   spanDays,
-  yearGroups,
+  timeCells,
+  timeGroups,
 } from '../lib/timeline'
 
 type Props = {
   rows: FlatRow[]
-  tasks: Task[]
-  monthWidth: number
+  span: DateSpan
+  cellWidth: number
   hoverId: string | null
   linkSourceId: string | null
   linkMode: boolean
@@ -25,17 +25,10 @@ type Props = {
   onPickDependency: (id: string) => void
 }
 
-function lvlClass(level: number, hasChildren: boolean): string {
-  if (hasChildren && level === 0) return 'lvl-0'
-  if (hasChildren && level === 1) return 'lvl-1'
-  if (hasChildren) return 'lvl-2'
-  return 'lvl-n'
-}
-
 export function GanttTimeline({
   rows,
-  tasks,
-  monthWidth,
+  span,
+  cellWidth,
   hoverId,
   linkSourceId,
   linkMode,
@@ -47,12 +40,11 @@ export function GanttTimeline({
 }: Props) {
   const syncing = useRef(false)
 
-  const span = useMemo(() => projectSpan(tasks), [tasks])
-  const months = useMemo(() => monthList(span), [span])
-  const years = useMemo(() => yearGroups(months), [months])
+  const scale = useMemo(() => pickScale(span), [span])
+  const cells = useMemo(() => timeCells(span, scale), [span, scale])
+  const groups = useMemo(() => timeGroups(cells, scale), [cells, scale])
   const total = useMemo(() => spanDays(span), [span])
-  const tw = months.length * monthWidth
-
+  const tw = Math.max(cells.length * cellWidth, cellWidth)
   const today = new Date()
   const todayLeft = (dayIndex(span, today) / total) * tw
   const showToday = today >= span.min && today <= span.max
@@ -96,22 +88,21 @@ export function GanttTimeline({
   return (
     <>
       <div className="pane-head" ref={headRef}>
-        <div className="gantt-head" style={{ width: tw, ['--gantt-mw' as string]: `${monthWidth}px` }}>
+        <div
+          className="gantt-head"
+          style={{ width: tw, ['--gantt-cw' as string]: `${cellWidth}px` }}
+        >
           <div className="gantt-years">
-            {years.map((y) => (
-              <div key={y.y} className="y-cell" style={{ width: y.count * monthWidth }}>
-                {y.y}
+            {groups.map((g) => (
+              <div key={g.key} className="y-cell" style={{ width: g.count * cellWidth }}>
+                {g.label}
               </div>
             ))}
           </div>
           <div className="gantt-months">
-            {months.map((m) => (
-              <div
-                key={`${m.y}-${m.m}`}
-                className="m-cell"
-                style={{ width: monthWidth }}
-              >
-                {MONTHS_RU[m.m]}
+            {cells.map((cell) => (
+              <div key={cell.key} className="m-cell" style={{ width: cellWidth }}>
+                {cell.label}
               </div>
             ))}
           </div>
@@ -121,32 +112,42 @@ export function GanttTimeline({
         {!rows.length ? null : (
           <div
             className="gantt-canvas"
-            style={{ width: tw, ['--gantt-mw' as string]: `${monthWidth}px` }}
+            style={{ width: tw, ['--gantt-cw' as string]: `${cellWidth}px` }}
           >
             {rows.map((row) => {
               const has = row.task.children.length > 0
-              const r = taskRange(row.task)
+              const tone = rowToneClass(row.task, row.level, has)
+              const r = {
+                start: parseDate(row.task.start),
+                end: parseDate(row.task.end),
+              }
               let bar: React.ReactNode = null
               if (r.start && r.end) {
-                const left = (dayIndex(span, r.start) / total) * tw
-                const dur = Math.max(dayIndex(span, r.end) - dayIndex(span, r.start) + 1, 1)
-                const width = Math.max((dur / total) * tw, 4)
-                bar = (
-                  <div
-                    className={`bar${has ? ' group' : ''}${linkSourceId === row.task.id ? ' dep-pick' : ''}`}
-                    style={{ left, width }}
-                    title={`${row.task.name}: ${fmt(r.start)} - ${fmt(r.end)}`}
-                    onClick={(e) => {
-                      if (!linkMode) return
-                      e.stopPropagation()
-                      onPickDependency(row.task.id)
-                    }}
-                  />
-                )
+                const startIdx = dayIndex(span, r.start)
+                const endIdx = dayIndex(span, r.end)
+                const leftIdx = Math.max(0, startIdx)
+                const rightIdx = Math.min(total - 1, endIdx)
+                if (rightIdx >= 0 && leftIdx < total) {
+                  const left = (leftIdx / total) * tw
+                  const dur = Math.max(rightIdx - leftIdx + 1, 1)
+                  const width = Math.max((dur / total) * tw, 4)
+                  bar = (
+                    <div
+                      className={`bar ${tone}${has ? ' group' : ''}${linkSourceId === row.task.id ? ' dep-pick' : ''}`}
+                      style={{ left, width }}
+                      title={`${row.task.name}: ${fmt(r.start)} - ${fmt(r.end)}`}
+                      onClick={(e) => {
+                        if (!linkMode) return
+                        e.stopPropagation()
+                        onPickDependency(row.task.id)
+                      }}
+                    />
+                  )
+                }
               }
               const classes = [
                 'gantt-row',
-                lvlClass(row.level, has),
+                tone,
                 hoverId === row.task.id ? 'hover' : '',
                 linkSourceId === row.task.id ? 'link-source' : '',
                 linkMode ? 'link-target-ready' : '',

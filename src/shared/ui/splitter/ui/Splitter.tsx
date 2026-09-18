@@ -11,7 +11,7 @@ export function Splitter({ onResize }: Props) {
   useEffect(() => {
     const onMove = (ev: MouseEvent) => {
       if (!active.current) return
-      onResize(Math.max(420, Math.min(window.innerWidth - 300, ev.clientX)))
+      onResize(Math.max(280, Math.min(window.innerWidth - 240, ev.clientX)))
     }
     const onUp = () => {
       active.current = false

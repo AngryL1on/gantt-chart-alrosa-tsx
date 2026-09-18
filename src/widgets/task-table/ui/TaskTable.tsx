@@ -14,18 +14,34 @@ import {
   type DragEvent,
   type ReactNode,
 } from 'react'
-import type { ColumnDef, FlatRow, FixedColId, Task } from '@/entities/task'
+import {
+  durationDays,
+  FIXED_COL_IDS,
+  rowToneClass,
+  type ColumnDef,
+  type FlatRow,
+  type FixedColId,
+  type Task,
+} from '@/entities/task'
 import { fmt, parseDate } from '@/shared/lib/dates'
 
 const FIXED_META: Record<
   FixedColId,
   { label: string; widthClass: string; width: number; canHide: boolean }
 > = {
-  num: { label: '№', widthClass: 'w-num', width: 54, canHide: false },
-  name: { label: 'Наименование', widthClass: 'w-name', width: 260, canHide: false },
-  start: { label: 'Дата начала', widthClass: 'w-date', width: 128, canHide: true },
-  end: { label: 'Дата окончания', widthClass: 'w-date', width: 128, canHide: true },
+  num: { label: '№', widthClass: 'w-num', width: 54, canHide: true },
+  name: { label: 'Тип карточки TDMS', widthClass: 'w-name', width: 156, canHide: false },
+  start: { label: 'Фактическая дата начала', widthClass: 'w-date', width: 104, canHide: true },
+  end: { label: 'Фактическая дата окончания', widthClass: 'w-date', width: 104, canHide: true },
+  duration: {
+    label: 'Фактическая длительность',
+    widthClass: 'w-duration',
+    width: 86,
+    canHide: true,
+  },
 }
+
+const FIXED_SET = new Set<string>(FIXED_COL_IDS)
 
 export type VisibleColumn =
   | { key: string; kind: 'fixed'; id: FixedColId }
@@ -53,13 +69,6 @@ type Props = {
   onHideFixed: (id: FixedColId) => void
   onReorderColumns: (fromKey: string, toKey: string) => void
   onPickDependency: (id: string) => void
-}
-
-function lvlClass(level: number, hasChildren: boolean): string {
-  if (hasChildren && level === 0) return 'lvl-0'
-  if (hasChildren && level === 1) return 'lvl-1'
-  if (hasChildren) return 'lvl-2'
-  return 'lvl-n'
 }
 
 function toDayjs(s: string): Dayjs | null {
@@ -97,9 +106,10 @@ export function TaskTable({
   const visibleCols = useMemo((): VisibleColumn[] => {
     const result: VisibleColumn[] = []
     for (const key of columnOrder) {
-      if (key === 'num' || key === 'name' || key === 'start' || key === 'end') {
-        if (hiddenFixed[key]) continue
-        result.push({ key, kind: 'fixed', id: key })
+      if (FIXED_SET.has(key)) {
+        const id = key as FixedColId
+        if (hiddenFixed[id]) continue
+        result.push({ key, kind: 'fixed', id })
       } else {
         const idx = columns.findIndex((c) => c.id === key)
         if (idx < 0 || columns[idx].hidden) continue
@@ -109,10 +119,15 @@ export function TaskTable({
     return result
   }, [columnOrder, columns, hiddenFixed])
 
+  const nameIndex = useMemo(
+    () => visibleCols.findIndex((col) => col.kind === 'fixed' && col.id === 'name'),
+    [visibleCols],
+  )
+
   const tableWidth = useMemo(() => {
     return visibleCols.reduce((sum, col) => {
       if (col.kind === 'fixed') return sum + FIXED_META[col.id].width
-      return sum + 108
+      return sum + 96
     }, 0)
   }, [visibleCols])
 
@@ -148,6 +163,11 @@ export function TaskTable({
   const onDragEnd = () => {
     setDragKey(null)
     setOverKey(null)
+  }
+
+  const cellClass = (index: number, extra = '') => {
+    const plain = nameIndex < 0 || index < nameIndex
+    return `${extra}${plain ? ' col-plain' : ''}`.trim()
   }
 
   const renderHeadCell = (col: VisibleColumn): ReactNode => {
@@ -217,22 +237,22 @@ export function TaskTable({
     )
   }
 
-  const renderBodyCell = (row: FlatRow, col: VisibleColumn): ReactNode => {
+  const renderBodyCell = (row: FlatRow, col: VisibleColumn, index: number): ReactNode => {
     const { task, level } = row
     const has = task.children.length > 0
 
     if (col.kind === 'fixed') {
       if (col.id === 'num') {
         return (
-          <td key={col.key} className="w-num">
+          <td key={col.key} className={cellClass(index, 'w-num')}>
             <div className="num">{row.num}</div>
           </td>
         )
       }
       if (col.id === 'name') {
         return (
-          <td key={col.key} className="w-name">
-            <div className="name-wrap" style={{ paddingLeft: 6 + level * 16 }}>
+          <td key={col.key} className={cellClass(index, 'w-name')}>
+            <div className="name-wrap" style={{ paddingLeft: 6 + level * 14 }}>
               {has ? (
                 <button
                   type="button"
@@ -276,10 +296,12 @@ export function TaskTable({
       }
       if (col.id === 'start' || col.id === 'end') {
         return (
-          <td key={col.key} className="w-date">
+          <td key={col.key} className={cellClass(index, 'w-date')}>
             <DatePicker
               size="small"
               variant="borderless"
+              format="DD.MM.YYYY"
+              placeholder=""
               style={{ width: '100%' }}
               value={toDayjs(task[col.id])}
               allowClear
@@ -292,12 +314,20 @@ export function TaskTable({
           </td>
         )
       }
+      if (col.id === 'duration') {
+        const days = durationDays(task)
+        return (
+          <td key={col.key} className={cellClass(index, 'w-duration')}>
+            <div className="num">{days ?? ''}</div>
+          </td>
+        )
+      }
     }
 
     if (col.kind !== 'field') return null
 
     return (
-      <td key={col.key} className="w-text">
+      <td key={col.key} className={cellClass(index, 'w-text')}>
         <Input
           className="cell-input"
           variant="borderless"
@@ -334,7 +364,7 @@ export function TaskTable({
             {rows.map((row) => {
               const has = row.task.children.length > 0
               const classes = [
-                lvlClass(row.level, has),
+                rowToneClass(row.task, row.level, has),
                 hoverId === row.task.id ? 'hover' : '',
                 linkSourceId === row.task.id ? 'link-source' : '',
                 linkMode ? 'link-target-ready' : '',
@@ -352,7 +382,7 @@ export function TaskTable({
                     if (linkMode) onPickDependency(row.task.id)
                   }}
                 >
-                  {visibleCols.map((col) => renderBodyCell(row, col))}
+                  {visibleCols.map((col, index) => renderBodyCell(row, col, index))}
                 </tr>
               )
             })}

@@ -1,5 +1,19 @@
 import { addDays, fmt, parseDate } from '@/shared/lib/dates'
-import { COLS, type ColumnDef, type FlatRow, type GanttData, type Task } from './types'
+import {
+  COLS,
+  TASK_KINDS,
+  type ColumnDef,
+  type FlatRow,
+  type GanttData,
+  type Task,
+  type TaskKind,
+} from './types'
+
+const DEFAULT_COL_TITLES = [
+  'Критичность срыва сроков',
+  'Отдел',
+  'Шифр',
+]
 
 export function uid(): string {
   return `t_${Math.random().toString(36).slice(2, 10)}`
@@ -12,22 +26,44 @@ export function blankFields(): string[] {
 export function defaultColumns(): ColumnDef[] {
   return Array.from({ length: COLS }, (_, i) => ({
     id: `c${i + 1}`,
-    title: i === 0 ? 'Ед. изм.' : i === 1 ? 'Кол-во' : `Колонка ${i + 1}`,
-    hidden: false,
+    title: DEFAULT_COL_TITLES[i] ?? `Колонка ${i + 1}`,
+    hidden: i === 0 || i >= 3,
   }))
+}
+
+export function isTaskKind(value: unknown): value is TaskKind {
+  return typeof value === 'string' && (TASK_KINDS as readonly string[]).includes(value)
+}
+
+export function rowToneClass(task: Task, level: number, hasChildren: boolean): string {
+  if (isTaskKind(task.kind)) return `kind-${task.kind}`
+  if (hasChildren && level === 0) return 'lvl-0'
+  if (hasChildren && level === 1) return 'lvl-1'
+  if (hasChildren) return 'lvl-2'
+  return 'lvl-n'
+}
+
+export function durationDays(task: Task): number | null {
+  const start = parseDate(task.start)
+  const end = parseDate(task.end)
+  if (!start || !end) return null
+  const t0 = Date.UTC(start.getFullYear(), start.getMonth(), start.getDate())
+  const t1 = Date.UTC(end.getFullYear(), end.getMonth(), end.getDate())
+  return Math.max(Math.round((t1 - t0) / 86400000) + 1, 0)
 }
 
 export function makeTask(
   name: string,
   start: string,
   end: string,
-  extra: Partial<Pick<Task, 'fields' | 'dependsOn' | 'children' | 'collapsed'>> = {},
+  extra: Partial<Pick<Task, 'fields' | 'dependsOn' | 'children' | 'collapsed' | 'kind'>> = {},
 ): Task {
   return {
     id: uid(),
     name,
     start,
     end,
+    kind: extra.kind,
     fields: extra.fields ?? blankFields(),
     collapsed: extra.collapsed ?? false,
     dependsOn: extra.dependsOn ?? [],
@@ -176,6 +212,7 @@ export function normalize(raw: unknown): GanttData {
         name: t.name || 'Задача',
         start: t.start || '',
         end: t.end || '',
+        kind: isTaskKind(t.kind) ? t.kind : undefined,
         fields,
         collapsed: !!t.collapsed,
         dependsOn: Array.isArray(t.dependsOn) ? t.dependsOn.map(String) : [],

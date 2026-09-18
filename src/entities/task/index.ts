@@ -8,8 +8,9 @@ export type {
   GanttMeta,
   MonthCell,
   Task,
+  TaskKind,
 } from './model/types'
-export { COLS, FIXED_COL_IDS } from './model/types'
+export { COLS, FIXED_COL_IDS, TASK_KINDS } from './model/types'
 
 export {
   blankFields,
@@ -17,10 +18,13 @@ export {
   collectTaskIds,
   defaultColumns,
   defaultTaskDates,
+  durationDays,
   findNode,
   flatten,
+  isTaskKind,
   makeTask,
   normalize,
+  rowToneClass,
   setCollapsed,
   taskRange,
   todayIso,

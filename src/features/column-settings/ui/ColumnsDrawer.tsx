@@ -3,9 +3,13 @@ import { Button, Drawer, List, Space, Switch, Typography } from 'antd'
 import type { ColumnDef, FixedColId } from '@/entities/task'
 
 const FIXED_LABELS: Partial<Record<FixedColId, string>> = {
-  start: 'Дата начала',
-  end: 'Дата окончания',
+  num: '№',
+  start: 'Фактическая дата начала',
+  end: 'Фактическая дата окончания',
+  duration: 'Фактическая длительность',
 }
+
+const TOGGLE_FIXED: FixedColId[] = ['num', 'start', 'end', 'duration']
 
 type Props = {
   open: boolean
@@ -46,7 +50,7 @@ export function ColumnsDrawer({
       <Typography.Title level={5}>Фиксированные</Typography.Title>
       <List
         size="small"
-        dataSource={(['start', 'end'] as FixedColId[])}
+        dataSource={TOGGLE_FIXED}
         renderItem={(id) => (
           <List.Item
             actions={[

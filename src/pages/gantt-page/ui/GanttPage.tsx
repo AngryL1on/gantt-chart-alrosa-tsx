@@ -1,5 +1,5 @@
-import { Input } from 'antd'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import dayjs, { type Dayjs } from 'dayjs'
 import {
   cloneData,
   defaultTaskDates,
@@ -19,11 +19,17 @@ import {
   mergeColumnOrder,
   reorderColumns,
 } from '@/features/column-settings'
-import { exportGanttJson, importGanttFile, JsonEditorModal } from '@/features/import-export'
+import {
+  exportGanttJson,
+  exportGanttXlsx,
+  importGanttFile,
+  JsonEditorModal,
+} from '@/features/import-export'
 import { applyLinkToggle, DepBanner, resolveLinkPick } from '@/features/link-tasks'
-import { BASE_MONTH_WIDTH } from '@/shared/config'
+import { BASE_CELL_WIDTH, type ViewMode } from '@/shared/config'
 import { addDays, fmt, parseDate } from '@/shared/lib/dates'
 import { GanttToolbar } from '@/widgets/gantt-toolbar'
+import { projectSpan } from '@/widgets/gantt-timeline'
 import { GanttWorkspace } from '@/widgets/gantt-workspace'
 
 export function GanttPage() {
@@ -31,24 +37,37 @@ export function GanttPage() {
   const [columnOrder, setColumnOrder] = useState<string[]>(() =>
     defaultColumnOrder(sampleData()),
   )
-  const [hiddenFixed, setHiddenFixed] = useState<Partial<Record<FixedColId, boolean>>>({})
+  const [hiddenFixed, setHiddenFixed] = useState<Partial<Record<FixedColId, boolean>>>({
+    num: true,
+  })
   const [zoomPercent, setZoomPercent] = useState(100)
   const [hoverId, setHoverId] = useState<string | null>(null)
   const [linkMode, setLinkMode] = useState(false)
   const [linkSourceId, setLinkSourceId] = useState<string | null>(null)
   const [jsonOpen, setJsonOpen] = useState(false)
   const [columnsOpen, setColumnsOpen] = useState(false)
+  const [viewMode, setViewMode] = useState<ViewMode>('all')
+  const [period, setPeriod] = useState<[Dayjs, Dayjs] | null>(null)
 
   const fileRef = useRef<HTMLInputElement>(null)
 
   const rows = useMemo(() => visibleRows(data.tasks), [data.tasks])
-  const monthWidth = Math.round((BASE_MONTH_WIDTH * zoomPercent) / 100)
+  const cellWidth = Math.round((BASE_CELL_WIDTH * zoomPercent) / 100)
+  const autoSpan = useMemo(() => projectSpan(data.tasks), [data.tasks])
+  const span = useMemo(() => {
+    if (!period) return autoSpan
+    const min = period[0].startOf('day').toDate()
+    const max = period[1].startOf('day').toDate()
+    return min <= max ? { min, max } : { min: max, max: min }
+  }, [period, autoSpan])
+  const periodValue: [Dayjs, Dayjs] = [dayjs(span.min), dayjs(span.max)]
 
   const applyData = useCallback((raw: unknown) => {
     const next = normalize(raw)
     setData(next)
     setColumnOrder((prev) => mergeColumnOrder(prev, next))
-    setHiddenFixed({})
+    setHiddenFixed({ num: true })
+    setPeriod(null)
   }, [])
 
   const updateNode = useCallback((id: string, mutator: (node: Task) => void) => {
@@ -125,6 +144,11 @@ export function GanttPage() {
   return (
     <div className="app-shell">
       <GanttToolbar
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
+        period={periodValue}
+        onPeriodChange={setPeriod}
+        onResetPeriod={() => setPeriod(null)}
         zoom={zoomPercent}
         onZoomChange={setZoomPercent}
         linkMode={linkMode}
@@ -133,7 +157,8 @@ export function GanttPage() {
           setLinkSourceId(null)
         }}
         onImport={() => fileRef.current?.click()}
-        onExport={() => exportGanttJson(data)}
+        onExportXlsx={() => void exportGanttXlsx(data)}
+        onExportJson={() => exportGanttJson(data)}
         onOpenJson={() => setJsonOpen(true)}
         onAddGroup={addGroup}
         onAddTask={addTask}
@@ -165,37 +190,14 @@ export function GanttPage() {
         />
       )}
 
-      <div className="doc-head">
-        <Input
-          className="doc-title"
-          value={data.meta.title}
-          onChange={(e) =>
-            setData((prev) => ({
-              ...prev,
-              meta: { ...prev.meta, title: e.target.value },
-            }))
-          }
-        />
-        <Input
-          className="doc-subtitle"
-          value={data.meta.subtitle}
-          placeholder="Объект, площадка или пояснение к графику"
-          onChange={(e) =>
-            setData((prev) => ({
-              ...prev,
-              meta: { ...prev.meta, subtitle: e.target.value },
-            }))
-          }
-        />
-      </div>
-
       <GanttWorkspace
         rows={rows}
-        tasks={data.tasks}
+        span={span}
+        viewMode={viewMode}
         columns={data.columns}
         columnOrder={columnOrder}
         hiddenFixed={hiddenFixed}
-        monthWidth={monthWidth}
+        cellWidth={cellWidth}
         hoverId={hoverId}
         linkSourceId={linkSourceId}
         linkMode={linkMode}

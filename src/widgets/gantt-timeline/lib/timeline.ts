@@ -1,5 +1,21 @@
-import type { DateSpan, MonthCell, Task } from '@/entities/task'
+import type { DateSpan, Task } from '@/entities/task'
 import { taskRange } from '@/entities/task'
+import { addDays, MONTHS_RU_CAP, pad, startOfDay } from '@/shared/lib/dates'
+
+export type TimeScale = 'day' | 'week' | 'month'
+
+export type TimeCell = {
+  key: string
+  label: string
+  y: number
+  m: number
+}
+
+export type TimeGroup = {
+  key: string
+  label: string
+  count: number
+}
 
 export function projectSpan(tasks: Task[]): DateSpan {
   let min: Date | null = null
@@ -16,26 +32,18 @@ export function projectSpan(tasks: Task[]): DateSpan {
   visit(tasks)
 
   if (!min || !max) {
-    const now = new Date()
-    min = new Date(now.getFullYear(), now.getMonth(), 1)
-    max = new Date(now.getFullYear(), now.getMonth() + 5, 1)
+    const now = startOfDay(new Date())
+    return { min: now, max: addDays(now, 13) }
   }
 
-  return {
-    min: new Date(min.getFullYear(), min.getMonth(), 1),
-    max: new Date(max.getFullYear(), max.getMonth() + 1, 0),
-  }
+  return { min: startOfDay(min), max: startOfDay(max) }
 }
 
-export function monthList(span: DateSpan): MonthCell[] {
-  const list: MonthCell[] = []
-  const d = new Date(span.min.getFullYear(), span.min.getMonth(), 1)
-  const last = new Date(span.max.getFullYear(), span.max.getMonth(), 1)
-  while (d <= last) {
-    list.push({ y: d.getFullYear(), m: d.getMonth() })
-    d.setMonth(d.getMonth() + 1)
-  }
-  return list
+export function pickScale(span: DateSpan): TimeScale {
+  const n = spanDays(span)
+  if (n <= 45) return 'day'
+  if (n <= 184) return 'week'
+  return 'month'
 }
 
 export function dayIndex(span: DateSpan, date: Date): number {
@@ -45,15 +53,64 @@ export function dayIndex(span: DateSpan, date: Date): number {
 }
 
 export function spanDays(span: DateSpan): number {
-  return dayIndex(span, span.max) + 1
+  return Math.max(dayIndex(span, span.max) + 1, 1)
 }
 
-export function yearGroups(months: MonthCell[]): { y: number; count: number }[] {
-  const years: { y: number; count: number }[] = []
-  months.forEach((m) => {
-    const last = years[years.length - 1]
-    if (!last || last.y !== m.y) years.push({ y: m.y, count: 1 })
+export function timeCells(span: DateSpan, scale: TimeScale): TimeCell[] {
+  const list: TimeCell[] = []
+  if (scale === 'day') {
+    const d = startOfDay(span.min)
+    const last = startOfDay(span.max)
+    while (d <= last) {
+      list.push({
+        key: `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`,
+        label: `${pad(d.getDate())} ${MONTHS_RU_CAP[d.getMonth()]}`,
+        y: d.getFullYear(),
+        m: d.getMonth(),
+      })
+      d.setDate(d.getDate() + 1)
+    }
+    return list
+  }
+
+  if (scale === 'week') {
+    const d = startOfDay(span.min)
+    const last = startOfDay(span.max)
+    while (d <= last) {
+      list.push({
+        key: `${d.getFullYear()}-w-${d.getMonth()}-${d.getDate()}`,
+        label: `${pad(d.getDate())} ${MONTHS_RU_CAP[d.getMonth()]}`,
+        y: d.getFullYear(),
+        m: d.getMonth(),
+      })
+      d.setDate(d.getDate() + 7)
+    }
+    return list
+  }
+
+  const d = new Date(span.min.getFullYear(), span.min.getMonth(), 1)
+  const last = new Date(span.max.getFullYear(), span.max.getMonth(), 1)
+  while (d <= last) {
+    list.push({
+      key: `${d.getFullYear()}-${d.getMonth()}`,
+      label: MONTHS_RU_CAP[d.getMonth()],
+      y: d.getFullYear(),
+      m: d.getMonth(),
+    })
+    d.setMonth(d.getMonth() + 1)
+  }
+  return list
+}
+
+export function timeGroups(cells: TimeCell[], scale: TimeScale): TimeGroup[] {
+  const groups: TimeGroup[] = []
+  cells.forEach((cell) => {
+    const key = scale === 'month' ? String(cell.y) : `${cell.y}-${cell.m}`
+    const label =
+      scale === 'month' ? String(cell.y) : `${MONTHS_RU_CAP[cell.m]} ${cell.y}`
+    const last = groups[groups.length - 1]
+    if (!last || last.key !== key) groups.push({ key, label, count: 1 })
     else last.count++
   })
-  return years
+  return groups
 }

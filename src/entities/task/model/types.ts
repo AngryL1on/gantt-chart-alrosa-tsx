@@ -4,11 +4,24 @@ export type ColumnDef = {
   hidden?: boolean
 }
 
+export const TASK_KINDS = [
+  'site',
+  'object',
+  'stage',
+  'dept',
+  'book',
+  'set',
+  'assignment',
+] as const
+
+export type TaskKind = (typeof TASK_KINDS)[number]
+
 export type Task = {
   id: string
   name: string
   start: string
   end: string
+  kind?: TaskKind
   fields: string[]
   collapsed: boolean
   dependsOn: string[]
@@ -43,7 +56,7 @@ export type MonthCell = {
   m: number
 }
 
-export const FIXED_COL_IDS = ['num', 'name', 'start', 'end'] as const
+export const FIXED_COL_IDS = ['num', 'name', 'start', 'end', 'duration'] as const
 export type FixedColId = (typeof FIXED_COL_IDS)[number]
 
 export type ColumnOrderItem =

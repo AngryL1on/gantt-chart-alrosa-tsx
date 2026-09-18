@@ -1,16 +1,18 @@
 import { useCallback, useRef, useState } from 'react'
-import type { ColumnDef, FlatRow, FixedColId, Task } from '@/entities/task'
+import type { ColumnDef, DateSpan, FlatRow, FixedColId, Task } from '@/entities/task'
+import type { ViewMode } from '@/shared/config'
 import { Splitter } from '@/shared/ui/splitter'
 import { GanttTimeline } from '@/widgets/gantt-timeline'
 import { TaskTable } from '@/widgets/task-table'
 
 type Props = {
   rows: FlatRow[]
-  tasks: Task[]
+  span: DateSpan
+  viewMode: ViewMode
   columns: ColumnDef[]
   columnOrder: string[]
   hiddenFixed: Partial<Record<FixedColId, boolean>>
-  monthWidth: number
+  cellWidth: number
   hoverId: string | null
   linkSourceId: string | null
   linkMode: boolean
@@ -29,11 +31,12 @@ type Props = {
 
 export function GanttWorkspace({
   rows,
-  tasks,
+  span,
+  viewMode,
   columns,
   columnOrder,
   hiddenFixed,
-  monthWidth,
+  cellWidth,
   hoverId,
   linkSourceId,
   linkMode,
@@ -49,7 +52,9 @@ export function GanttWorkspace({
   onReorderColumns,
   onPickDependency,
 }: Props) {
-  const [leftWidth, setLeftWidth] = useState(780)
+  const [leftWidth, setLeftWidth] = useState(() =>
+    Math.round(Math.min(640, Math.max(420, window.innerWidth * 0.52))),
+  )
   const leftBodyRef = useRef<HTMLDivElement>(null)
   const leftHeadRef = useRef<HTMLDivElement>(null)
   const rightBodyRef = useRef<HTMLDivElement>(null)
@@ -70,51 +75,61 @@ export function GanttWorkspace({
     syncLock.current = false
   }, [])
 
+  const showTable = viewMode !== 'chart'
+  const showChart = viewMode !== 'table'
+
   return (
-    <div className="workspace">
-      <div className="pane-left" style={{ width: leftWidth }}>
-        <TaskTable
-          rows={rows}
-          columns={columns}
-          columnOrder={columnOrder}
-          hiddenFixed={hiddenFixed}
-          hoverId={hoverId}
-          linkSourceId={linkSourceId}
-          linkMode={linkMode}
-          onHover={onHover}
-          onScroll={onLeftScroll}
-          bodyRef={leftBodyRef}
-          headRef={leftHeadRef}
-          onToggle={onToggle}
-          onAddChild={onAddChild}
-          onDelete={onDelete}
-          onPatchTask={onPatchTask}
-          onPatchField={onPatchField}
-          onRenameColumn={onRenameColumn}
-          onHideFieldColumn={onHideFieldColumn}
-          onHideFixed={onHideFixed}
-          onReorderColumns={onReorderColumns}
-          onPickDependency={onPickDependency}
-        />
-      </div>
+    <div className={`workspace mode-${viewMode}`}>
+      {showTable && (
+        <div
+          className="pane-left"
+          style={{ width: showChart ? leftWidth : undefined }}
+        >
+          <TaskTable
+            rows={rows}
+            columns={columns}
+            columnOrder={columnOrder}
+            hiddenFixed={hiddenFixed}
+            hoverId={hoverId}
+            linkSourceId={linkSourceId}
+            linkMode={linkMode}
+            onHover={onHover}
+            onScroll={onLeftScroll}
+            bodyRef={leftBodyRef}
+            headRef={leftHeadRef}
+            onToggle={onToggle}
+            onAddChild={onAddChild}
+            onDelete={onDelete}
+            onPatchTask={onPatchTask}
+            onPatchField={onPatchField}
+            onRenameColumn={onRenameColumn}
+            onHideFieldColumn={onHideFieldColumn}
+            onHideFixed={onHideFixed}
+            onReorderColumns={onReorderColumns}
+            onPickDependency={onPickDependency}
+          />
+        </div>
+      )}
 
-      <Splitter onResize={setLeftWidth} />
+      {showTable && showChart && <Splitter onResize={setLeftWidth} />}
 
-      <div className="pane-right">
-        <GanttTimeline
-          rows={rows}
-          tasks={tasks}
-          monthWidth={monthWidth}
-          hoverId={hoverId}
-          linkSourceId={linkSourceId}
-          linkMode={linkMode}
-          onHover={onHover}
-          onScroll={onRightScroll}
-          bodyRef={rightBodyRef}
-          headRef={rightHeadRef}
-          onPickDependency={onPickDependency}
-        />
-      </div>
+      {showChart && (
+        <div className="pane-right">
+          <GanttTimeline
+            rows={rows}
+            span={span}
+            cellWidth={cellWidth}
+            hoverId={hoverId}
+            linkSourceId={linkSourceId}
+            linkMode={linkMode}
+            onHover={onHover}
+            onScroll={onRightScroll}
+            bodyRef={rightBodyRef}
+            headRef={rightHeadRef}
+            onPickDependency={onPickDependency}
+          />
+        </div>
+      )}
     </div>
   )
 }

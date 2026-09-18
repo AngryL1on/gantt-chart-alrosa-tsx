@@ -63,8 +63,9 @@ function JsonEditorForm({
       />
       <Typography.Paragraph type="secondary" style={{ marginBottom: 0, marginTop: 8, fontSize: 11 }}>
         Формат: meta.title / meta.subtitle, columns[{'{'}id,title,hidden{'}'}] - 10 текстовых
-        колонок, tasks[{'{'}id, name, start, end, fields[10], collapsed, dependsOn,
-        children{'}'}]. Группы - задачи с children. Даты в виде YYYY-MM-DD.
+        колонок, tasks[{'{'}id, name, start, end, kind, fields[10], collapsed, dependsOn,
+        children{'}'}]. kind: site, object, stage, dept, book, set, assignment.
+        Даты в виде YYYY-MM-DD.
       </Typography.Paragraph>
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
         <Button onClick={onClose}>Закрыть</Button>
